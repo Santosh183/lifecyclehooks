@@ -1,0 +1,213 @@
+--> we bind @input property when we need to send data from parent to child while calling it's selector.
+	can we decide from parent what html template child can have while calling it's selector?
+	answer is yes. we can . to do that in child template we need to mark placeholder with 
+	<ng-content></ng-content>. 
+	ex. in child.html 
+		<div>
+			<p>I'm fixed html in child</p>
+			<ng-content></ng-content> 
+		</div>
+	and from parent while calling it's selector we just need to 
+	pass html in child selector. ex. <child> <p>I'll replace <ng-content></ng-content> tag from child template</p></child>
+	ngafterviewInit life cycle hook get triggered when in any component this content is initialized. and once initialized 
+	then ngafterviewChecked get triggered to check and detect changes from that html.
+	
+--> ngafterviewinit is related to view of own component means template html.
+	ngcontentinit get called first and then viewinit bcoz angular first initialize ng-content tag and then rest view.
+	
+--> to see all life cycle hooks in actions this is outstanding example. consider below code snippets 
+	
+	app.component.html (grandparent)
+	
+	<div class="col-6 p-4">
+	  <p class="p-1"> Life cycle hooks in actions  from root component ! </p>
+	  <app-parent [parent]="'gg'" ></app-parent>
+	</div>
+	
+	
+	parent.component.html 
+	
+	<div class="col-12 p-4">
+	   <p class="p-1">  I'm in parent.</p>
+		<app-child [childObj]="toChildObject" [childText]="toChildText"></app-child>
+	</div>
+	
+	
+	child.component.html
+	
+	<div class="col-12 p-3">
+	 <p> I'm child </p>
+	 <p class="col-6">{{childText}}</p>
+	 <p class="col-6">{{childObj.text}}</p>
+	</div> 
+	
+	// ignore styling classes , and properties binding . as of now we just need to keep in mind that we have 3 layer hirarchy.
+		granparent -> parent -> child. and we are passing data as @input property while calling selector.
+		
+--> although we are not giving here code snippet for component here but assume from all three component we are implementing all possible life cycle hooks 
+	and printing their respective names and component name from those hooks to see all of them in action at once.
+	
+--> to understand the exact sequence of all hooks in all three levels firstly we are going to summarize how angular process happen one by one.
+	
+	1) first it create instance for all component classes and inject all dependencies to respective component.
+	   that means here angular is going to call constructor one by one from top most hirarchy to bottom. grandparent to parent in our case.
+	   
+	   // note that forming comopnent tree which is described in step is not part of life cycle hook but it's very important to 
+		  understand overall flow.
+	   
+	2) then it gather all data required for binding to html, 
+		   -> first take all data which is coming from outer world  i.e. parent component.
+		      data in form of @Input and @Output properties. 
+		      this happen in ngOnChange(). 
+			  // here is important note. onChange will get only called when @input property is present on component.
+			  // and it's getting changed via binding from parent and not manually from child component itslef.
+		   -> then gather all data from component properties itself. ideally angular except to happen all data initialization 
+		      in ngOnInit().
+	
+	3) In angular whenever there is change in property value, data gathering happens again. In case of @input and @output properties
+		if there is change ngonChange will get called each time. but for component proprty changes ngOninit will not get called when there is change 
+		in component property instead there is extra method ngDoCheck() which get called each time there is any change in any
+		compoennt property( not @input or @output). So even at first time when values are populated in onInit it assume as some change
+		and hence ngDoCheck() get called.
+	
+	4) now it start initializing views and then immediately performing check on that. here views are of two types. one is own component view and
+	   other is one which is getting is projected from outside world i.e. from parent component. this view is nothing but 
+	   html content which is going to rendered in <ng-content></ng-content>.
+	       -> first content view get initialized with proper data binding and ngAfterOncontentInit get called.
+		      then immediately check happen on the same and ngAfterContentChecked is called.
+		   -> Now here ideally html content or view of component should get initialized and checked like content but these 
+		      tasks remain pending and it look for child component and repeat all steps from 2 to current stage . and again it goes for child of
+			  child and so on..
+		   -> but in case component don't have child then it initialzed view (component view apart from ng-content ) with proper data binding
+				and hence ngAfterViewInit get called.
+				once view is initialized it immediately get checked so ngAfterViewChecked get called.
+
+	  
+	5) up to this step angular have done succesful job of loading view with proper data and it seems like everything is perfect but that is not the case
+	   when angular gather data it store it somewhere in memory for future binding of view. then it bind it. here our assumption is data present in component
+	   is exactly what we have binded in html and that should be the ideal case but somehow component data might cget changed after displaying view.
+	   now here docheck and onchange will not happen if we manually somehow changed data.
+	   ex.
+	     <child [childText]="textFromParent"></child>
+		 angular keep value of textFromParent in memory and bind it. it will not check for change in childText until there is change in textFromParent.
+		 if programmer by mistakely change childText in some method then there is inconsistency in view and data.
+		 to avoid this after completeing all steps up to here and displaying data successfully angular once again crosscheck values of component and html.
+		 it crosscheck so that develpoer will not commit any logical mistakes while developing.  
+		 while crosschecking it perform all check hooks in same sequence as before.
+		 doCheck in parent -> ngAftercontentChecked in parent -> ngAfterViewChecked (if don't have child otherwise go for child and perform same.. 
+		 child will further go for grandchild and so on.)
+		 
+		// during this check if theere is any inconsitency then angular throw very famous error
+		   ExpressionChangedAfterItHasBeenCheckedError at run time in browser. however this check happen only in devloping mode when we build for production
+		   this error will be supressed at run time. so clearly this check is in favor of developers.
+	
+	6) when we route to some different url and load some new comonent destroying older one then just before it get destroyed ngOndestroyed get called.
+	   here we can do some tasks like unsubscribing from backend service etc.
+	   ngOndestroy is somehow little independent lifecycle hook when it comes to sequence. bcoz it get executed just before component get destroyed.
+	   and it has nothing do with data, view and rest hooks.
+	
+	
+			
+	// after understanding above flow we have below output in console when we put all hooks in all 3 levels.
+	
+			GrandParent constructor
+			Parent constructor
+			Child constructor
+			GrandParent ngOnInit
+			GrandParent ngDoCheck
+			GrandParent ngAfterContentInit
+			GrandParent ngAfterContentChecked
+			Parent ngOnChanges
+			Parent ngOnInit
+			Parent ngDoCheck
+			Parent ngAfterContentInit
+			Parent ngAfterContentChecked
+			Child ngOnChanges
+			Child ngOnInit
+			Child ngDoCheck
+			Child ngAfterContentInit
+			Child ngAfterContentChecked
+			Child ngAfterViewInit
+			Child ngAfterViewChecked
+			Parent ngAfterViewInit
+			Parent ngAfterViewChecked
+			GrandParent ngAfterViewInit
+			GrandParent ngAfterViewChecked
+			GrandParent ngDoCheck
+			GrandParent ngAfterContentChecked
+			Parent ngDoCheck
+			Parent ngAfterContentChecked
+			Child ngDoCheck
+			Child ngAfterContentChecked
+			Child ngAfterViewChecked
+			Parent ngAfterViewChecked
+			GrandParent ngAfterViewChecked
+
+
+//////////////////////////////////////////////////////////////////////////////////////////
+				
+--> What if we say whatever we saw is just half knoweldge of life cycle hooks?
+    Indeed that is the case. we have somehow control in hand to tell angular to change it's detection strategy.
+	until this time angular was running lot of checking for us but we can tell angular, not to check everytime in component configuration.
+	until this our @component didn't have any property such as changeDetection: ChangeDetectionStrategy.OnPush
+	because by default it's changeDetection: ChangeDetectionStrategy.default. and umder default detection strategy we saw everything.
+	
+--> let's see everything in action for changeDetection: ChangeDetectionStrategy.OnPush
+	
+	@Component({
+	  selector: 'tooltip',
+	  template: `
+		some template
+	  `,
+	  changeDetection: ChangeDetectionStrategy.OnPush
+	})
+	
+	// in this case there will be no check happen except 3 scenarios. note that no chekc happening means view is not going to modified even though 
+	    some component properties or @input properties are changed. but check will happen in three scenarios.
+		
+		1) @input is passed as object i.e. by reference from parent. and in child component we are modifying whole reference.
+		    ex. in parent html  <child [prop]="objectOrArrayReference"></child>
+				in child html
+				<div > {{i.name}}</div>
+				now -->
+				-- in child component if we changed whole reference 
+				   this.prop = newPropObject  // assigning directly reference  so view will get reloaded .
+				-- in child component 
+				   this.prop.name = newName // we are not modifying whole object refernce so view will not get loaded.
+		
+		2) also check will happen and view will get reloaded when value is getting changed by some method which get triggered as result
+		   of some DOM event.
+		   <div> {{normalComponentProperty}}  // not @input
+		   method(){
+		   // change normalComponentProperty value
+		   }
+		   method();
+		   // above scenario will not change view because we are manually calling method.
+		   // however if we binded same method with some dom event in html and event is triggered then view will get updated.
+		   
+		3) We also have explicit opportunity to trigger check by calling changedetect method.
+			
+			  constructor(private cdr: ChangeDetectorRef) {}
+			  // in logic this.cdr.detectChanges();
+			  // above method will force angular to rune once detect cycle on component itself, all parent and grandparent of the compoent.
+			  // like if we change value from method and angular is not updating view due to OnPush we can use this to update view.
+			  
+		 --> there is another method this.cdr.markForCheck() 
+			// now let's imagine we have OnPush on parent , grand parent and component itself as well. now if we change some value 
+			   and do detectChange() it will immediately run check. it's wiser to first  do all updation and then run changedetect on all of them once.
+			   it will avoid changedetect each time and hence will increase perfomance of the application.
+			// to resolve this issue we have markforCheck method. whenever we change such value we just need to call this.cdr.markForCheck()
+			// so that in future when changedetect run it will take all marked values to update views.
+
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
