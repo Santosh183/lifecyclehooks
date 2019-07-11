@@ -1,5 +1,5 @@
 import { Component, OnInit, Input, OnChanges, DoCheck,  AfterContentInit,
-  AfterContentChecked, AfterViewInit, AfterViewChecked, OnDestroy} from '@angular/core';;
+  AfterContentChecked, AfterViewInit, AfterViewChecked, OnDestroy} from '@angular/core';
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
